@@ -1,0 +1,7 @@
+# dependencies
+/node_modules
+/prisma-docs
+
+# misc
+.env
+combined.log
