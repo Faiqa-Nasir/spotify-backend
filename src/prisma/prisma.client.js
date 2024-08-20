@@ -1,16 +1,23 @@
 import { PrismaClient } from "@prisma/client";
 import logger from "../config/logger.js";
+import { v4 as uuidv4 } from 'uuid';
 
-// We are disabling the eslint rule here for a specific purpose. DO NOT REMOVE
-// eslint-disable-next-line prefer-const
-let prisma = new PrismaClient();
+// Initialize Prisma Client
+const prisma = new PrismaClient();
 
-// Make a query to the database to check if the connection is successful
-prisma.users
-  .count()
-  .then((_) => logger.info(`Connected to MongoDB`))
-  .catch((error) => {
-    logger.error(`Failed to connect to the database ${error}`);
-  });
+async function testConnection() {
+  try {
+    // Create a test user with a unique ID
+    
+    // Query the User model
+    const users = await prisma.user.findMany();
+    logger.info(`Number of users: ${users.length}`);
+  } catch (error) {
+    logger.error(`Failed to connect to the database: ${error.message}`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
 
+testConnection();
 export default prisma;

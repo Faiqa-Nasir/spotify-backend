@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-import { homeRouter } from './api/routes/index.js';
+import { homeRouter,searchRouter,playlistRouter,userAccountRouter,addSongsToDbRouter } from './api/routes/index.js';
 import errorHandler from './api/middlewares/errorHandler.middleware.js';
 import logger from './config/logger.js';
 
@@ -45,6 +45,10 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/', homeRouter);
+app.use('/search', searchRouter);
+app.use('/account', userAccountRouter);
+app.use('/playlist',playlistRouter)
+app.use('/addSongs',addSongsToDbRouter)
 
 // Example route to test server
 app.get('/', (req, res) => {

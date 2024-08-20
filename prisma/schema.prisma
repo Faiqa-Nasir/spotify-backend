@@ -6,3 +6,54 @@ datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id                String   @id @default(auto()) @map("_id")
+  username          String   @unique
+  email             String   @unique
+  password          String   // Encrypted password
+  followedArtists   String[] // List of artist IDs
+  playlistIds       String[] // List of playlist IDs
+  likedSongs        String[] // List of song IDs
+  recentSongIds            String[]
+}
+
+model Artist {
+  id                String   @id @map("_id")
+  description       String
+  followersNumber   Int
+  artistPick        String   // Song ID
+  picture           String
+  songs             Song[]   @relation("ArtistSongs")
+  albums            Album[]  @relation("ArtistAlbums")
+}
+
+model Playlist {
+  id                String   @id @map("_id")
+  name              String
+  picture           String
+  songIds           String[] // List of song IDs
+}
+model Song {
+  id                String   @id @map("_id")
+  name              String
+  artistId          String   // Artist ID
+  picture           String
+  genres            String[] // List of genres
+  dateOfRelease     DateTime
+  albumId           String   // Album ID
+  duration          Int      // Duration in seconds
+  playedNumber      Int      // Number of times played
+  filePath          String   // Path to the audio file
+  spotifyId         String   // Spotify ID for the song
+  artist            Artist   @relation("ArtistSongs", fields: [artistId], references: [id])
+}
+
+model Album {
+  id                String   @id @map("_id")
+  name              String
+  artistId          String   // Artist ID
+  releaseDate       DateTime
+  picture           String
+  artist            Artist   @relation("ArtistAlbums", fields: [artistId], references: [id])
+}
