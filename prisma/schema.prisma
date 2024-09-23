@@ -3,39 +3,40 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id                String   @id @default(auto()) @map("_id")
+  id                String   @id @default(uuid())
   username          String   @unique
   email             String   @unique
   password          String   // Encrypted password
   followedArtists   String[] // List of artist IDs
   playlistIds       String[] // List of playlist IDs
   likedSongs        String[] // List of song IDs
-  recentSongIds            String[]
+  recentSongIds     String[]
 }
 
 model Artist {
-  id                String   @id @map("_id")
+  id                String   @id @default(uuid())
   description       String
   followersNumber   Int
-  artistPick        String   // Song ID
+  artistPick        String   // name
   picture           String
   songs             Song[]   @relation("ArtistSongs")
   albums            Album[]  @relation("ArtistAlbums")
 }
 
 model Playlist {
-  id                String   @id @map("_id")
+  id                String   @id @default(uuid())
   name              String
   picture           String
   songIds           String[] // List of song IDs
 }
+
 model Song {
-  id                String   @id @map("_id")
+  id                String   @id @default(uuid())
   name              String
   artistId          String   // Artist ID
   picture           String
@@ -50,7 +51,7 @@ model Song {
 }
 
 model Album {
-  id                String   @id @map("_id")
+  id                String   @id @default(uuid())
   name              String
   artistId          String   // Artist ID
   releaseDate       DateTime

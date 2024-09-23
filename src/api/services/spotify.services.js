@@ -24,6 +24,64 @@ async function getNewAccessToken() {
 
   return accessToken;
 }
+// Function to fetch albums for an artist and add them to the database
+async function fetchAndAddAlbumsForArtists() {
+  try {
+    // Fetch all artists from the database
+    const artists = await prisma.artist.findMany();
+
+    // Loop over each artist
+    for (const artist of artists) {
+      const artistId = artist.id;
+
+      // Fetch albums from Spotify API for each artist
+      const token = await getAccessToken();
+      const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}/albums`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const albums = response.data.items;
+
+      // Add each album to the database
+      for (const album of albums) {
+        const albumData = {
+          id: album.id,
+          name: album.name,
+          artistId: artistId,
+          releaseDate: new Date(album.release_date),
+          picture: album.images[0]?.url || '',
+        };
+
+        // Check if the album already exists, if not, create it
+        await prisma.album.upsert({
+          where: { id: album.id },
+          update: albumData,
+          create: albumData,
+        });
+      }
+
+      // Update the artist's albums list (connect the album ids)
+      await prisma.artist.update({
+        where: { id: artistId },
+        data: {
+          albums: {
+            connect: albums.map((album) => ({ id: album.id })),
+          },
+        },
+      });
+    }
+
+    console.log('Albums fetched and added successfully for all artists.');
+  } catch (error) {
+    console.error('Error fetching or adding albums:', error.message);
+    throw new Error('Failed to fetch or add albums.');
+  }
+}
+
+export {
+  // Other exports
+  fetchAndAddAlbumsForArtists,
+};
 
 // Function to get the access token, refreshing it if necessary
 async function getAccessToken() {
@@ -50,6 +108,7 @@ async function getArtistName(artistId) {
 }
 
 // Combined function to get songs by genres and artist details
+// Combined function to get songs by genres and artist details
 async function getSongsByGenres(genres) {
   try {
     const genresArray = Array.isArray(genres) ? genres : [genres];
@@ -70,19 +129,30 @@ async function getSongsByGenres(genres) {
       },
     });
 
-    // Fetch artist details for each song
-    const songsWithArtistNames = await Promise.all(
-      songs.map(async (song) => {
-        const artist = await getArtistName(song.artistId);
-        return {
-          ...song,
-          artistName: artist.name,
-          artistId: artist.id,
-        };
-      })
-    );
+    // Fetch artist details for each unique artistId
+    const artistIds = [...new Set(songs.map(song => song.artistId))];
+    const artists = await prisma.artist.findMany({
+      where: {
+        id: { in: artistIds }
+      },
+      select: {
+        id: true,
+        artistPick: true
+      }
+    });
 
-    return songsWithArtistNames;
+    // Create a map of artistId to artistName
+    const artistMap = new Map(artists.map(artist => [artist.id, artist.artistPick]));
+
+    // Map the songs to the format expected by the frontend
+    const result = songs.map(song => ({
+      artistName: artistMap.get(song.artistId) || 'Unknown Artist', // If artist is not found, use 'Unknown Artist'
+      songName: song.name,
+      songId: song.id,
+      songPicture: song.picture
+    }));
+
+    return result;
   } catch (error) {
     console.error('Error fetching songs by genres:', error.message);
     throw new Error('Failed to fetch songs by genres.');
@@ -121,14 +191,25 @@ async function getSongById(songId) {
     throw new Error('Failed to fetch song from Spotify.');
   }
 }
-// Function to get an artist by their ID
 async function getArtistById(artistId) {
-  const token = await getAccessToken();
-  const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data;
+  try {
+    // Query the database for the artist with the given ID
+    const artist = await prisma.artist.findUnique({
+      where: { id: artistId },
+    });
+
+    if (!artist) {
+      throw new Error(`Artist with ID ${artistId} not found.`);
+    }
+
+    return artist;
+  } catch (error) {
+    console.error('Error fetching artist from database:', error.message);
+    throw new Error('Failed to fetch artist from database.');
+  }
 }
+
+
 
 // Function to search for songs by name
 async function searchSongByName(name) {
@@ -187,6 +268,7 @@ async function getRecommendationsBasedOnFollowedArtists(artistIds) {
 
   return response.data.tracks;
 }
+
 async function addSongToDatabaseById(songId, genre) {
   try {
     console.log(songId);
@@ -246,8 +328,47 @@ async function addSongToDatabaseById(songId, genre) {
     throw error;
   }
 }
+async function fetchAndAddArtistToDb(artistId) {
+  try {
+    // Fetch access token
+    const token = await getAccessToken();
 
+    // Fetch artist details from Spotify API
+    let artistData;
+    try {
+      const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      artistData = response.data;
+    } catch (fetchError) {
+      console.error('Error fetching artist from Spotify:', fetchError.message);
+      throw new Error('Failed to fetch artist from Spotify.');
+    }
 
+    // Prepare artist data for database
+    const artist = {
+      id: artistData.id,
+      description: artistData.genres.join(', '), // Genres as description
+      followersNumber: artistData.followers.total || 0, // Use total followers from Spotify
+      artistPick:artistData.name|| '', // Initialize artistPick to an empty string
+      picture: artistData.images[0]?.url || '', // Use the first image URL if available or default to empty string
+      // Provide empty nested arrays for relations
+      songs: { connect: [] }, // Use connect for empty array of relations
+      albums: { connect: [] }, // Use connect for empty array of relations
+    };
+
+    // Add or update artist in the database
+    const result = await prisma.artist.upsert({
+      where: { id: artist.id },
+      update: artist,
+      create: artist,
+    });
+
+    console.log('Artist added or updated successfully:', result);
+  } catch (error) {
+    console.error('Error processing artist:', error.message);
+  }
+}
 
 export {
   getSongById,
@@ -256,7 +377,8 @@ export {
   getRecommendationsBasedOnRecentlyPlayed,
   getRecommendationsBasedOnGenres,
   getRecommendationsBasedOnFollowedArtists,
-  addSongToDatabaseById
+  addSongToDatabaseById,
+  fetchAndAddArtistToDb
 };
 
 

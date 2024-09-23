@@ -36,6 +36,7 @@ const corsOptions = {
 
 // Middleware
 app.use(cors(corsOptions));
+app.use('/public', express.static('public'));
 app.use(express.json());
 app.use(cookieParser(process.env.COOKIE_SECRET_KEY)); // Setup cookie-parser with secret key
 app.use((req, res, next) => {
@@ -48,7 +49,7 @@ app.use('/', homeRouter);
 app.use('/search', searchRouter);
 app.use('/account', userAccountRouter);
 app.use('/playlist',playlistRouter)
-app.use('/addSongs',addSongsToDbRouter)
+app.use('/add',addSongsToDbRouter)
 
 // Example route to test server
 app.get('/', (req, res) => {
